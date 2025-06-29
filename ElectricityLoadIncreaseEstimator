@@ -1,0 +1,41 @@
+public with sharing class ElectricityLoadIncreaseEstimator {
+    public class Request {
+        @InvocableVariable(required=true)
+        public Decimal additionalLoadKw;
+    }
+
+    public class Response {
+        @InvocableVariable
+        public Decimal installationCost;
+        @InvocableVariable
+        public Decimal perUnitElectricityCost;
+    }
+
+    @InvocableMethod(label='Estimate Installation and Electricity Cost' description='Estimates installation and per-unit electricity cost for additional load')
+    public static List<Response> estimateCosts(List<Request> requests) {
+        List<Response> results = new List<Response>();
+        for (Request req : requests) {
+            Response res = new Response();
+            res.installationCost = calculateInstallationCost(req.additionalLoadKw);
+            res.perUnitElectricityCost = calculatePerUnitCost(req.additionalLoadKw);
+            results.add(res);
+        }
+        return results;
+    }
+
+    // Installation cost: $100 per kW
+    private static Decimal calculateInstallationCost(Decimal kw) {
+        return kw * 100;
+    }
+
+    // Per-unit electricity cost (sample tiered rates)
+    private static Decimal calculatePerUnitCost(Decimal kw) {
+        if (kw <= 10) {
+            return 0.12;
+        } else if (kw <= 50) {
+            return 0.18;
+        } else {
+            return 0.08;
+        }
+    }
+}
