@@ -123,3 +123,89 @@ public without sharing class DocumentAIbill {
         return results;
     }
 }
+
+--------------------------------------------------------------------------------------------------------------------
+Document AI - Workbench code 
+
+ContentVersion fileToProcess = [
+            SELECT VersionData
+            FROM ContentVersion
+            WHERE ContentDocumentId = :'069gL000004gHbdQAE'
+            ORDER BY VersionNumber DESC
+            LIMIT 1
+        ];
+
+        if (fileToProcess == null) {
+            System.debug('Error: No file found with ContentDocumentId ' + '069gL000004gHbdQAE');
+            return;
+        }
+
+        String fileDataAsBase64 = EncodingUtil.base64Encode(fileToProcess.VersionData);
+
+        HttpRequest req = new HttpRequest();
+
+        String endpoint = System.Url.getOrgDomainUrl().toExternalForm() +
+                          '/services/data/v64.0/ssot/document-processing/actions/extract-data';
+        req.setEndpoint(endpoint);
+        req.setMethod('POST');
+
+        // 3. Set HTTP Headers
+        // For internal callouts, use the current user's Session ID for authentication.
+        req.setHeader('Authorization', 'Bearer ' + UserInfo.getSessionId());
+        req.setHeader('Content-Type', 'application/json;charset=UTF-8');
+
+        // 4. Construct the JSON Request Body
+        // Use nested Maps and Lists to build the required JSON structure.
+        Map<String, Object> fileDetails = new Map<String, Object>{
+            'mimeType' => 'application/pdf',
+            'data' => fileDataAsBase64
+        };
+
+        Map<String, Object> requestBodyMap = new Map<String, Object>{
+            'idpConfigurationIdOrName' => 'Bill_Template',
+            'files' => new List<Object>{ fileDetails }
+        };
+
+        // Serialize the Apex map into a JSON string.
+        String jsonBody = JSON.serialize(requestBodyMap, true); // `true` for pretty print
+        req.setBody(jsonBody);
+
+        System.debug('Sending request to: ' + endpoint);
+        System.debug('Request Body: ' + jsonBody);
+
+
+        try {
+            Http http = new Http();
+            HttpResponse res = http.send(req);
+Map<String, Object> outerJson = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());
+List<Object> dataList = (List<Object>) outerJson.get('data');
+Map<String, Object> firstData = (Map<String, Object>) dataList[0];
+
+// Step 2: Get the encoded JSON string
+String encodedJson = (String) firstData.get('data');
+
+// Step 3: Decode HTML entities
+String decodedJson = encodedJson
+    .replace('&quot;', '\u0022')
+    .replace('&amp;', '&')
+    .replace('&lt;', '<')
+    .replace('&gt;', '>')
+    .replace('&apos;', '\'');
+
+// Step 4: Parse the decoded JSON string
+Map<String, Object> finalJson = (Map<String, Object>) JSON.deserializeUntyped(decodedJson);
+   system.debug('finalJson'+finalJson);
+
+            if (res.getStatusCode() == 200 || res.getStatusCode() == 202) {
+                System.debug('Success! Status: ' + res.getStatus());
+                System.debug('Response Body: ' + res.getBody());
+
+            } else {
+                System.debug('Error! Status: ' + res.getStatus());
+                System.debug('Status Code: ' + res.getStatusCode());
+                System.debug('Response Body: ' + res.getBody());
+            }
+
+        } catch(System.CalloutException e) {
+            System.debug('Callout failed: ' + e.getMessage());
+        }
